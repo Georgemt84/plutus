@@ -1,1 +1,1 @@
-(program 1.1.0 (\xs -> (\x -> error) (force trace "PT21" (constr 0 []))))
+(program 1.1.0 (\xs -> (\x -> error) (force trace "PlutusTx.BuiltinList.!!: negative index" (constr 0 []))))

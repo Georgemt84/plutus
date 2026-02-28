@@ -158,8 +158,10 @@ case redeemer of
 The plugin will typically fail when producing Haddock documentation.
 However, in this instance, you can simply tell it to defer any errors to runtime, using the `defer-errors` plugin flag. Since you are only building documentation, runtime errors won't occur.
 
-## Error codes
+## Error messages
 
-Some Plinth library functions produce error messages when failing.
-To reduce code size, error codes are used instead of full error messages.
-The mapping from error codes to error messages can be found in [`PlutusTx.ErrorCodes`](https://plutus.cardano.intersectmbo.org/haddock/latest/plutus-tx/src/PlutusTx.ErrorCodes.html#plutusPreludeErrorCodes).
+Plinth library functions produce human‑readable error messages when they fail.
+Previously a short code was emitted to keep script size small; however the
+compiler now embeds the full description directly, which makes debugging much
+simpler.  You can still consult [`PlutusTx.ErrorCodes`](https://plutus.cardano.intersectmbo.org/haddock/latest/plutus-tx/src/PlutusTx.ErrorCodes.html#plutusPreludeErrorCodes)
+for a list of all messages and their meanings.

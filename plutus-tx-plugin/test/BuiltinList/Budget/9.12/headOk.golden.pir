@@ -10,7 +10,7 @@ in
       case r xs [f, z])
     (\(ds : Unit) ->
        let
-         !x : Unit = trace {Unit} "PT23" Unit
+         !x : Unit = trace {Unit} "PlutusTx.BuiltinList.head: empty list" Unit
        in
        error {integer})
     (\(x : integer) (xs : list integer) (ds : Unit) -> x)

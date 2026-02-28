@@ -172,7 +172,7 @@ does a recursive lookup in that list. The above Plinth code is compiled to:
           force
             (force ifThenElse
                (lessThanInteger i 0)
-               (delay (traceError "PT6"))
+               (delay (traceError "PlutusTx.List.!!: negative index"))
                (delay
                   (go
                      i

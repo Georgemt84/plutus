@@ -4,6 +4,6 @@
       case
         (force dropList 5 xs)
         [ (\x xs ds _ann -> x)
-        , (\_ann -> (\x -> error) (force trace "PT22" (constr 0 []))) ]
+        , (\_ann -> (\x -> error) (force trace "PlutusTx.BuiltinList.!!: index too large" (constr 0 []))) ]
         (constr 0 [])
         (constr 0 [])))

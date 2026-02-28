@@ -13,7 +13,7 @@ in
       case r xs [f, z])
     (\(_ann : Unit) ->
        let
-         !x : Unit = trace {Unit} "PT22" Unit
+         !x : Unit = trace {Unit} "PlutusTx.BuiltinList.!!: index too large" Unit
        in
        error {Unit -> integer})
     (\(x : integer) (xs : list integer) (ds : Unit) (_ann : Unit) -> x)

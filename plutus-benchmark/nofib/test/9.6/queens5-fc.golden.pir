@@ -1052,7 +1052,7 @@
                                       (lessThanInteger n 0)
                                       [ (/\dead -> go n ds)
                                       , (/\dead ->
-                                           traceError {ConflictSet} "PT6") ]
+                                           traceError {ConflictSet} "PlutusTx.List.!!: negative index") ]
                                       {all dead. dead}
                                 in
                                 Tuple2

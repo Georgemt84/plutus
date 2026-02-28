@@ -4,6 +4,6 @@ let
 in
 \(xs : list integer) ->
   let
-    !x : Unit = trace {Unit} "PT21" Unit
+    !x : Unit = trace {Unit} "PlutusTx.BuiltinList.!!: negative index" Unit
   in
   error {integer}

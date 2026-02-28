@@ -6,7 +6,7 @@
            (force (force chooseList)
               l
               (delay
-                 (\_ann -> (\x -> error) (force trace "PT22" (constr 0 []))))
+                 (\_ann -> (\x -> error) (force trace "PlutusTx.BuiltinList.!!: index too large" (constr 0 []))))
               (delay
                  ((\x xs ds eta -> x) (force headList l) (force tailList l))))
            (constr 0 [])

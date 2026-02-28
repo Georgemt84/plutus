@@ -4,5 +4,5 @@
       case
         xs
         [ (\x xs ds -> xs)
-        , (\ds -> (\x -> error) (force trace "PT25" (constr 0 []))) ]
+        , (\ds -> (\x -> error) (force trace "PlutusTx.BuiltinList.last: empty list" (constr 0 []))) ]
         (constr 0 [])))

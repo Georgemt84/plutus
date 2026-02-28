@@ -94,6 +94,11 @@ uplc code is unaffected and is already short-circuiting.
   - `PT24` -> `PlutusTx.BuiltinList.tail: empty list`
   - `PT25` -> `PlutusTx.BuiltinList.last: empty list`
 
+## Changed
+
+- PlutusTx error reporting now emits full human-readable messages instead of
+  short `PT` codes.  The values in `PlutusTx.ErrorCodes` have been updated
+  accordingly and golden tests regenerated.
 - Added TH help `PlutusTx.IsData.TH.makeIsDataAsList` which generates `ToData`, `FromData`, `UnsafeFromData` instances with internal representation being `Data.List` instead of `Data.Constr` for given product datatype(only having a single constructor).
 
 - Added `PlutusTx.Test.Util.compiledCodeToHask` and `PlutusTx.Test.Util.compiledCodeToHaskUnsafe` for applying parameters to `CompiledCodeIn uni fun` tersely.

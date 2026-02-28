@@ -13,7 +13,7 @@ letrec
                  case a xs [(\(ds : a) (ds : list a) -> last {a} xs), x])
             , (\(ds : Unit) ->
                  let
-                   !x : Unit = trace {Unit} "PT25" Unit
+                   !x : Unit = trace {Unit} "PlutusTx.BuiltinList.last: empty list" Unit
                  in
                  error {a}) ]
             Unit
