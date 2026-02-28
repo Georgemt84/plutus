@@ -296,7 +296,23 @@ compileDataConRef dc = do
       throwPlain $
         CompilationError "Data constructor not in the type constructor's list of constructors"
 
-  pure $ constrs !! index
+  let base = constrs !! index
+  style <- asks $ coDatatypeStyle . ccOpts
+  if style == PIR.DataEncoding
+    then do
+      -- wrap the base constructor so that each argument is converted to
+      -- builtin data; this pushes the responsibility for dealing with the
+      -- `Constr` builtin onto the caller side rather than inside PIR.
+      argGHCTys <- pure $ fmap (GHC.scaledThing) $ GHC.dataConRepArgTys dc
+      argPIRTys <- mapM compileTypeNorm argGHCTys
+      argNames <- forM argPIRTys $ \_ -> safeFreshName "arg"
+      let args = zipWith (VarDecl annMayInline) argNames argPIRTys
+      toBuiltinId <- lookupGhcId 'PlutusTx.IsData.Class.toBuiltinData
+      toBuiltin <- compileVarFresh annMayInline toBuiltinId
+      let convert v = PIR.apply annMayInline toBuiltin v
+          convertedArgs = fmap (convert . PIR.mkVar) args
+      pure $ PIR.mkIterLamAbs args (PIR.mkIterApp base convertedArgs)
+    else pure base
   where
     tc = GHC.dataConTyCon dc
 
@@ -1322,6 +1338,8 @@ compileCase
   -> m (PIRTerm uni fun)
 compileCase isDead rewriteConApps binfo scrutinee binder t alts = do
   wrapTailName <- lookupGhcName 'PlutusTx.AsData.Internal.wrapTail
+  -- check current datatype encoding style
+  style <- asks $ coDatatypeStyle . ccOpts
   let
     -- See Note [Compiling AsData Matchers and Their Invocations]
     isWrapTailApp =
@@ -1431,7 +1449,50 @@ compileCase isDead rewriteConApps binfo scrutinee binder t alts = do
         -- we're going to delay the body, so the matcher needs to be instantiated at the delayed type
         resultType <- maybeDelayType lazyCase originalResultType
 
-        let applied = match scrutinee' resultType branches
+        applied <- if style == PIR.DataEncoding
+          then do
+            -- convert the scrutinee value to Data and dispatch manually
+            toBuiltId <- lookupGhcId 'PlutusTx.IsData.Class.toBuiltinData
+            toBuilt <- compileVarFresh annMayInline toBuiltId
+            let scrData = PIR.apply annMayInline toBuilt scrutinee'
+            -- build match on tag and convert arguments back to typed values
+            tagName <- safeFreshName "tag"
+            argsName <- safeFreshName "args"
+            let pair = PIR.applyBuiltin annMayInline PLC.UnConstrData scrData
+                tag = PIR.applyBuiltin annMayInline PLC.FstPair pair
+                args = PIR.applyBuiltin annMayInline PLC.SndPair pair
+                eqInt x n = PIR.applyBuiltin annMayInline PLC.EqualsInteger x (PIR.mkConstant annMayInline n)
+                headD t = PIR.applyBuiltin annMayInline PLC.HeadList t
+                tailD t = PIR.applyBuiltin annMayInline PLC.TailList t
+                -- build branch applying the function to converted arguments
+                buildBranch idx c =
+                  let argTys' = constructorArgTypes c
+                      go _ [] _ = []
+                      go lst (ty:tys') vn =
+                        let h = headD lst
+                            conv = PIR.mkIterApp
+                              (PIR.builtin annMayInline (PIR.DefinedName "unsafeFromBuiltinData"))
+                              [(annMayInline,) h]
+                            t' = tailD lst
+                         in conv : go t' tys' vn
+                   in PIR.mkIterApp (PIR.mkVar c) (go (PIR.mkVar (VarDecl annMayInline argsName (TyBuiltin ann (PLC.DefaultUniList PLC.DefaultUniData)))) argTys' tagName)
+                dispatch = foldr
+                  (\(i,c) elseBranch ->
+                     PIR.mkIterApp
+                       (PIR.builtin annMayInline PLC.IfThenElse)
+                       [ (annMayInline,) (eqInt (PIR.mkVar (VarDecl annMayInline tagName (TyBuiltin ann PLC.DefaultUniInteger))) (fromIntegral i))
+                       , (annMayInline,) (buildBranch i c)
+                       , (annMayInline,) elseBranch
+                       ]
+                  )
+                  (PIR.mkError annMayInline "impossible")
+                  (zip [0 :: Integer ..] dcs)
+                binds =
+                  [ PIR.TermBind annMayInline PIR.NonStrict (VarDecl annMayInline tagName (TyBuiltin annMayInline PLC.DefaultUniInteger)) tag
+                  , PIR.TermBind annMayInline PIR.NonStrict (VarDecl annMayInline argsName (TyBuiltin annMayInline (PLC.DefaultUniList PLC.DefaultUniData))) args
+                  ]
+            PIR.mkLet annMayInline PIR.NonRec binds dispatch
+          else pure $ match scrutinee' resultType branches
         -- See Note [Case expressions and laziness]
         mainCase <- maybeForce lazyCase applied
 

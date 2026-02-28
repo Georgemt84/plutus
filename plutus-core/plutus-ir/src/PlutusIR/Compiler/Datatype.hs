@@ -345,6 +345,7 @@ mkPatternFunctorBody :: MonadQuote m => DatatypeCompilationOpts -> ann -> Dataty
 mkPatternFunctorBody opts ann d = case _dcoStyle opts of
   ScottEncoding -> mkScottTy ann d
   SumsOfProducts -> pure $ mkDatatypeSOPTy ann d
+  DataEncoding -> pure $ TyBuiltin ann (PLC.Data ())
   BuiltinCasing -> pure $ mkDatatypeSOPTy ann d
 
 {-| Make the real PLC type corresponding to a 'Datatype' with the given pattern functor body.
@@ -364,14 +365,21 @@ SOPs:
 @ -}
 mkDatatypeType :: forall m uni fun a. MonadQuote m => DatatypeCompilationOpts -> Recursivity -> Datatype TyName Name uni (Provenance a) -> m (PLCRecType uni fun a)
 mkDatatypeType opts r d@(Datatype ann tn tvs _ _) = do
-  pf <- mkPatternFunctorBody opts ann d
-  case r of
-    NonRec -> pure $ PlainType $ PLC.mkIterTyLam tvs pf
-    -- See Note [Recursive datatypes]
-    -- We are reusing the same type name for the fixpoint variable. This is fine
-    -- so long as we do renaming later, since we only reuse the name inside an inner binder
-    Rec -> do
-      RecursiveType <$> (liftQuote $ Types.makeRecursiveType @uni @(Provenance a) ann (_tyVarDeclName tn) tvs pf)
+  case _dcoStyle opts of
+    DataEncoding ->
+      -- every instance of the datatype is represented by the builtin `Data` type.  We still
+      -- quantify over the original type parameters so that programs mentioning them remain
+      -- well-kinded, but the body of the quantification is ignored.
+      pure $ PlainType $ PIR.mkIterTyForall tvs $ TyBuiltin ann (PLC.Data ())
+    _ -> do
+      pf <- mkPatternFunctorBody opts ann d
+      case r of
+        NonRec -> pure $ PlainType $ PLC.mkIterTyLam tvs pf
+        -- See Note [Recursive datatypes]
+        -- We are reusing the same type name for the fixpoint variable. This is fine
+        -- so long as we do renaming later, since we only reuse the name inside an inner binder
+        Rec -> do
+          RecursiveType <$> (liftQuote $ Types.makeRecursiveType @uni @(Provenance a) ann (_tyVarDeclName tn) tvs pf)
 
 -- | The type of a datatype-value is of the form `[TyCon tyarg1 tyarg2 ... tyargn]`
 mkDatatypeValueType :: a -> Datatype TyName Name uni a -> Type TyName uni a
@@ -426,7 +434,7 @@ mkConstructor opts dty d@(Datatype ann _ tvs _ constrs) index = do
     pure $ zipWith (VarDecl ann) argNames argTypes
 
   constrBody <- case _dcoStyle opts of
-    style | style == SumsOfProducts || style == BuiltinCasing -> do
+    style | style == SumsOfProducts || style == BuiltinCasing || style == DataEncoding -> do
       -- We have to be a bit careful annotating the type of the constr. It is inside the 'wrap' so it
       -- needs to be one level "unrolled".
 
@@ -497,7 +505,7 @@ mkDestructor opts dty d@(Datatype ann _ tvs _ constrs) = do
   xn <- safeFreshName "x"
 
   destrBody <- case _dcoStyle opts of
-    style | style == SumsOfProducts || style == BuiltinCasing -> do
+    style | style == SumsOfProducts || style == BuiltinCasing || style == DataEncoding -> do
       resultType <- resultTypeName d
       -- Variables for case arguments, and the bodies to be used as the actual cases
       caseVars <- for constrs $ \c -> do
@@ -563,16 +571,28 @@ compileDatatype r body d = do
 
   (concreteTyDef, constrDefs, destrDef) <- compileDatatypeDefs opts r d
 
-  let
-    tyVars = [PIR.defVar concreteTyDef]
-    tys = [getType $ PIR.defVal concreteTyDef]
-    vars = fmap PIR.defVar constrDefs ++ [PIR.defVar destrDef]
-    vals = fmap PIR.defVal constrDefs ++ [PIR.defVal destrDef]
-  -- See Note [Abstract data types]
-  pure $
-    PIR.mkIterApp
-      (PIR.mkIterInst (PIR.mkIterTyAbs tyVars (PIR.mkIterLamAbs vars body)) ((p,) <$> tys))
-      ((p,) <$> vals)
+  case _dcoStyle opts of
+    DataEncoding -> do
+      -- no abstraction in this mode; we simply introduce the concrete type and the
+      -- constructor/destructor bindings via ordinary let‑bindings.  this gives us a
+      -- “type let” rather than the usual polymorphic wrapper, breaking the
+      -- abstraction barrier mentioned in Note [Abstract data types].
+      let tyBind = PIR.TypeBind annMayInline (PIR.defVar concreteTyDef) (PIR.defVal concreteTyDef)
+          termBinds = fmap
+            (	 -> PIR.TermBind annMayInline PIR.NonStrict (PIR.defVar t) (PIR.defVal t))
+            (constrDefs ++ [destrDef])
+      pure $ PIR.mkLet annMayInline PIR.NonRec (tyBind : termBinds) body
+    _ -> do
+      let
+        tyVars = [PIR.defVar concreteTyDef]
+        tys = [getType $ PIR.defVal concreteTyDef]
+        vars = fmap PIR.defVar constrDefs ++ [PIR.defVar destrDef]
+        vals = fmap PIR.defVal constrDefs ++ [PIR.defVal destrDef]
+      -- See Note [Abstract data types]
+      pure $
+        PIR.mkIterApp
+          (PIR.mkIterInst (PIR.mkIterTyAbs tyVars (PIR.mkIterLamAbs vars body)) ((p,) <$> tys))
+          ((p,) <$> vals)
 
 -- | Compile a 'Datatype' to a triple of type-constructor, data-constructors, destructor definitions.
 compileDatatypeDefs

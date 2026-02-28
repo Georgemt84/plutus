@@ -62,6 +62,18 @@ See Note [Encoding of datatypes] -}
 data DatatypeStyle
   = ScottEncoding
   | SumsOfProducts
+  | {-| Compile every user-defined datatype as the builtin 'Data' type.
+    This mode is primarily intended for experimentation and backwards-compatibility
+    work.  Unlike the other styles we cannot rely on Scott/SOP encoding because the
+    underlying representation is just a raw 'Data' value, so callers will need to
+    insert explicit conversions to/from 'BuiltinData'.
+
+    Main roadblock: values of constructors are still polymorphic and we have to
+    convert fields to 'Data', which used to require breaking the abstraction barrier
+    used for other styles.  As a simple fix we *don’t* abstract datatypes at compilation
+    time when this style is chosen (see Note [Abstract data types]).
+  -}
+    DataEncoding
   | {-| A temporary data type style used to make a couple of V3 ledger-api-test tests pass
     before we can support casing on values of built-in types in newer protocol versions and
     merge this into 'SumsOfProducts' (which is what controls whether 'Case' is available or
@@ -70,7 +82,11 @@ data DatatypeStyle
   deriving stock (Show, Read, Eq)
 
 instance Pretty DatatypeStyle where
-  pretty = viaShow
+  pretty = \case
+    ScottEncoding -> "ScottEncoding"
+    SumsOfProducts -> "SumsOfProducts"
+    DataEncoding -> "DataEncoding"
+    BuiltinCasing -> "BuiltinCasing"
 
 newtype DatatypeCompilationOpts = DatatypeCompilationOpts
   { _dcoStyle :: DatatypeStyle

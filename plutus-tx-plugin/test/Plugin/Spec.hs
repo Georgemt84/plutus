@@ -5,6 +5,7 @@ import Test.Tasty.Extras
 import Plugin.Basic.Spec
 import Plugin.Coverage.Spec
 import Plugin.Data.Spec
+import Plugin.DataEncoding.Spec
 import Plugin.Debug.Spec
 import Plugin.Errors.Spec
 import Plugin.Functions.Spec
@@ -24,6 +25,7 @@ tests =
     [ basic
     , primitives
     , datat
+    , dataEncoding
     , debug
     , functions
     , laziness
